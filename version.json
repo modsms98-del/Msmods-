@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "updateURL": "https://example.com/version.json",
+  "updateURL": "https://github.com/modsms98-del/Msmods-.git",
   "jerseys": [
     { "name": "Pakistan Jersey", "link": "https://example.com/pakistan.zip" },
     { "name": "India Jersey", "link": "https://example.com/india.zip" }
