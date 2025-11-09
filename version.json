@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "updateURL": "https://example.com/version.json",
+  "jerseys": [
+    { "name": "Pakistan Jersey", "link": "https://example.com/pakistan.zip" },
+    { "name": "India Jersey", "link": "https://example.com/india.zip" }
+  ],
+  "stadiums": [
+    { "name": "Lahore Stadium", "link": "https://example.com/lahore.zip" },
+    { "name": "Karachi Stadium", "link": "https://example.com/karachi.zip" }
+  ],
+  "squads": [
+    { "name": "PSL 2025 Squad", "link": "https://example.com/psl2025.zip" },
+    { "name": "ASIA Cup Squad", "link": "https://example.com/worldcup.zip" }
+  ]
+}
