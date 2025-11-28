@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>High Quality OBJ Viewer</title>
+<style>
+  body, html {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: sans-serif;
+  }
+
+  #loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: cyan;
+    font-weight: bold;
+    font-size: 18px;
+  }
+
+  #controls {
+    position: absolute;
+    bottom: 15px;
+    left: 15px;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    padding: 12px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  #controls button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid #0ff;
+    padding: 8px 14px;
+    font-size: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.3s ease;
+  }
+
+  #controls button:hover {
+    background: rgba(0, 255, 255, 0.15);
+    transform: scale(1.03);
+  }
+
+  #controls input[type="file"] {
+    display: none;
+  }
+
+  #brightness-bar {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(6px);
+    padding: 10px 20px;
+    border-radius: 12px;
+    color: #0ff;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #brightness-bar input[type="range"] {
+    width: 160px;
+    accent-color: #0ff;
+  }
+</style>
+</head>
+<body>
+<div id="loader">Loading LOADER...</div>
+
+<div id="controls">
+
+  <label>
+    <button onclick="playClick(() => document.getElementById('objInput').click())">Load OBJ</button>
+    <input type="file" id="objInput" accept=".obj" />
+  </label>
+
+  <label>
+    <button onclick="playClick(() => document.getElementById('textureInput').click())">Apply Texture</button>
+    <input type="file" id="textureInput" accept=".jpg,.png" />
+  </label>
+</div>
+
+<div id="brightness-bar">
+  <input type="range" id="brightness" min="0" max="100" value="80" />
+  <span id="bval">80%</span>
+</div>
+
+<audio id="click-sound" src="click.mp3" preload="auto"></audio>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+let scene, camera, renderer, controls, ambient, environmentMap;
+let currentModel = null;
+
+const models = {
+  half: 'batsman_half.obj',
+  full: 'batsman_full.obj'
+};
+
+const clickSound = document.getElementById("click-sound");
+
+function playClick(action) {
+  clickSound.currentTime = 0;
+  clickSound.play();
+  action();
+}
+
+init();
+
+function init() {
+  scene = new THREE.Scene();
+
+  const cubeLoader = new THREE.CubeTextureLoader();
+  environmentMap = cubeLoader.load([
+    'px.jpg','nx.jpg',
+    'py.jpg','ny.jpg',
+    'pz.jpg','nz.jpg'
+  ]);
+  environmentMap.encoding = THREE.sRGBEncoding;
+  scene.environment = environmentMap;
+
+  scene.background = new THREE.TextureLoader().load('your.png');
+
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.set(2,2,5);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.4;
+  document.body.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  ambient = new THREE.AmbientLight(0xffffff, 0.8);
+  scene.add(ambient);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(5,10,5);
+  scene.add(dirLight);
+
+  const hemiLight = new THREE.HemisphereLight(0x87cefa, 0x222222, 0.4);
+  scene.add(hemiLight);
+
+  document.getElementById('brightness').addEventListener('input', e => {
+    const val = parseInt(e.target.value);
+    ambient.intensity = val / 100;
+    document.getElementById('bval').textContent = val + '%';
+  });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // Upload Texture
+  document.getElementById('textureInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    reader.onload = evt => {
+      const tex = new THREE.TextureLoader().load(evt.target.result);
+      tex.encoding = THREE.sRGBEncoding;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      applyTexture(tex);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Upload Custom OBJ
+  document.getElementById('objInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    reader.onload = evt => loadOBJFromData(evt.target.result);
+    reader.readAsText(file);
+  });
+
+  animate();
+}
+
+// Load predefined model
+function loadModel(type){
+  document.getElementById('loader').style.display = 'block';
+  const loader = new THREE.OBJLoader();
+
+  loader.load(models[type], obj => {
+    if(currentModel) scene.remove(currentModel);
+    currentModel = obj;
+
+    obj.traverse(child => {
+      if(child.isMesh){
+        child.material = new THREE.MeshStandardMaterial({
+          color:0xffffff,
+          metalness:0.3,
+          roughness:0.4,
+          envMap: environmentMap
+        });
+      }
+    });
+
+    centerModel(obj);
+  });
+}
+
+// Load Custom OBJ
+function loadOBJFromData(data){
+  document.getElementById('loader').style.display = 'block';
+
+  const loader = new THREE.OBJLoader();
+  const obj = loader.parse(data);
+
+  if(currentModel) scene.remove(currentModel);
+  currentModel = obj;
+
+  obj.traverse(child=>{
+    if(child.isMesh){
+      child.material = new THREE.MeshStandardMaterial({
+        color:0xffffff,
+        metalness:0.3,
+        roughness:0.4,
+        envMap: environmentMap
+      });
+    }
+  });
+
+  centerModel(obj);
+}
+
+// Center Model
+function centerModel(obj){
+  const box = new THREE.Box3().setFromObject(obj);
+  const center = box.getCenter(new THREE.Vector3());
+  obj.position.sub(center);
+
+  scene.add(obj);
+  document.getElementById('loader').style.display = 'none';
+}
+
+// Apply Texture
+function applyTexture(texture){
+  if(!currentModel) return;
+  currentModel.traverse(child=>{
+    if(child.isMesh){
+      child.material.map = texture;
+      child.material.needsUpdate = true;
+    }
+  });
+}
+
+// Animation
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
